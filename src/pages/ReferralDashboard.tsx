@@ -53,10 +53,17 @@ const ReferralDashboard = () => {
         const data = await getLeaderboard();
         if (!data || !Array.isArray(data)) return;
         
+        console.log('Raw leaderboard data:', data);
+        
         // Sort data by referral count in descending order
-        const sortedData = [...data].sort((a, b) => 
-          (b.referral_count || 0) - (a.referral_count || 0)
-        );
+        const sortedData = [...data].sort((a, b) => {
+          // Ensure both values are numbers
+          const countA = typeof a.referral_count === 'number' ? a.referral_count : parseInt(a.referral_count || '0', 10);
+          const countB = typeof b.referral_count === 'number' ? b.referral_count : parseInt(b.referral_count || '0', 10);
+          return countB - countA;
+        });
+        
+        console.log('Sorted leaderboard data:', sortedData);
         
         // Store all leaderboard data
         setAllLeaderboardData(sortedData);
@@ -235,14 +242,22 @@ const ReferralDashboard = () => {
               {leaderboardData.length > 0 ? (
                 <>
                   {leaderboardData.map((item, index) => {
-                    // Calculate the actual rank based on the current page
+                    // Get the referral count for this item - ensure it's a number
+                    const itemCount = typeof item.referral_count === 'number'
+                      ? item.referral_count
+                      : parseInt(item.referral_count || '0', 10);
+                    
+                    // Calculate rank based on position in the sorted array
                     const actualRank = (currentPage - 1) * itemsPerPage + index + 1;
+                    
+                    console.log(`User: ${item.name}, Email: ${item.email}, Referral Count: ${itemCount}, Raw Count: ${item.referral_count}`);
+                    
                     return (
                       <LeaderboardItem 
                         key={item.email}
                         rank={actualRank}
                         name={item.name || 'Anonymous'}
-                        referrals={item.referral_count}
+                        referrals={itemCount} // Explicitly pass the parsed number
                         isCurrentUser={item.email === userInfo?.email}
                       />
                     );

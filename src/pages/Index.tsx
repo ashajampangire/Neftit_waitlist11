@@ -8,6 +8,7 @@ import WalletVerificationDialog from "@/components/WalletVerificationDialog";
 import TwitterVerificationDialog from "@/components/TwitterVerificationDialog";
 import DiscordVerificationDialog from "@/components/DiscordVerificationDialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useWaitlist } from "@/hooks/useWaitlist";
 import { Footer } from "@/components/Footer";
@@ -28,8 +29,30 @@ const Index = () => {
   const [userDiscordUsername, setUserDiscordUsername] = useState<string | null>(null);
   const [waitlistCount, setWaitlistCount] = useState(1247);
 
+  // New state management as requested
+  const [completedTasks, setCompletedTasks] = useState({ 
+    email: false, 
+    wallet: false, 
+    twitter: false, 
+    discord: false 
+  }); 
+  const [showLeaderboard, setShowLeaderboard] = useState(false); 
+  const [email, setEmail] = useState(""); 
+  const [walletAddress, setWalletAddress] = useState(""); 
+  const [twitterUsername, setTwitterUsername] = useState(""); 
+  const [discordUsername, setDiscordUsername] = useState(""); 
+  const [userName, setUserName] = useState(""); 
+  const [userRank, setUserRank] = useState(1); 
+  const [referralCount, setReferralCount] = useState(12); 
+
+  // States to show input fields 
+  const [showEmailInput, setShowEmailInput] = useState(false); 
+  const [showWalletInput, setShowWalletInput] = useState(false); 
+  const [showTwitterInput, setShowTwitterInput] = useState(false); 
+  const [showDiscordInput, setShowDiscordInput] = useState(false); 
+
   const { toast } = useToast();
-  const { getTotalWaitlistCount } = useWaitlist();
+  const { getTotalWaitlistCount, joinWaitlist, validateWalletAddress, updateWaitlistEntry, verifyTwitterFollow, verifyDiscordJoin } = useWaitlist();
 
   useEffect(() => {
     // Load waitlist count
@@ -47,143 +70,440 @@ const Index = () => {
       // Set email if available
       if (parsedData.email) {
         setUserEmail(parsedData.email);
+        setEmail(parsedData.email);
         if (!completedActions.includes("email")) {
           setCompletedActions(prev => [...prev, "email"]);
+          setCompletedTasks(prev => ({ ...prev, email: true }));
         }
       }
       
       // Set wallet address if available
       if (parsedData.wallet_address) {
         setUserWalletAddress(parsedData.wallet_address);
+        setWalletAddress(parsedData.wallet_address);
         if (!completedActions.includes("address")) {
           setCompletedActions(prev => [...prev, "address"]);
+          setCompletedTasks(prev => ({ ...prev, wallet: true }));
         }
       }
       
       // Set Twitter info if available
       if (parsedData.twitter_username && parsedData.twitter_followed) {
         setUserTwitterUsername(parsedData.twitter_username);
+        setTwitterUsername(parsedData.twitter_username);
         if (!completedActions.includes("twitter")) {
           setCompletedActions(prev => [...prev, "twitter"]);
+          setCompletedTasks(prev => ({ ...prev, twitter: true }));
         }
       }
       
       // Set Discord info if available
       if (parsedData.discord_username && parsedData.discord_joined) {
         setUserDiscordUsername(parsedData.discord_username);
+        setDiscordUsername(parsedData.discord_username);
         if (!completedActions.includes("discord")) {
           setCompletedActions(prev => [...prev, "discord"]);
+          setCompletedTasks(prev => ({ ...prev, discord: true }));
         }
+      }
+
+      // Set user name if available
+      if (parsedData.name) {
+        setUserName(parsedData.name);
       }
     }
   }, [getTotalWaitlistCount]);
 
   const handleActionComplete = (actionId: string) => {
     if (actionId === "email") {
-      setShowEmailModal(true);
+      // Use new inline input approach instead of modal
+      setShowEmailInput(prev => !prev);
       return;
     }
 
-    if (actionId === "address") {
-      setShowWalletModal(true);
+    if (actionId === "wallet" || actionId === "address") {
+      // Use new inline input approach instead of modal
+      setShowWalletInput(prev => !prev);
       return;
     }
 
     if (actionId === "twitter") {
-      setShowTwitterModal(true);
+      // Redirect to Twitter follow link and show input
+      window.open("https://twitter.com/intent/follow?screen_name=neftitxyz", "_blank");
+      setShowTwitterInput(true);
       return;
     }
 
     if (actionId === "discord") {
-      setShowDiscordModal(true);
+      // Redirect to Discord join link and show input
+      window.open("https://discord.gg/GHc9samP", "_blank");
+      setShowDiscordInput(true);
       return;
     }
   };
 
-  const handleEmailSuccess = (email: string, entry: any) => {
-    setUserEmail(email);
-    setCompletedActions([...completedActions, "email"]);
-    
-    // Get existing user data if available
-    const existingData = localStorage.getItem("waitlist_user");
-    const parsedExisting = existingData ? JSON.parse(existingData) : {};
-    
-    // Store user data in localStorage for dashboard with timestamp information
-    localStorage.setItem(
-      "waitlist_user",
-      JSON.stringify({
-        ...parsedExisting,
-        email,
-        referral_code: entry.referral_code,
-        name: entry.name,
-        wallet_address: userWalletAddress || parsedExisting.wallet_address || null,
-        twitter_username: userTwitterUsername || parsedExisting.twitter_username || null,
-        twitter_followed: completedActions.includes("twitter") || parsedExisting.twitter_followed || false,
-        discord_username: userDiscordUsername || parsedExisting.discord_username || null,
-        discord_joined: completedActions.includes("discord") || parsedExisting.discord_joined || false,
-        created_at: entry.created_at || parsedExisting.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-    );
+  // New handlers for inline inputs
+  const handleEmailSubmit = async () => { 
+    if (!email) { 
+      toast({ 
+        title: "Email Required", 
+        description: "Please enter your email address.", 
+        variant: "destructive" 
+      }); 
+      return; 
+    } 
+
+    // Email format validation using regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      toast({ 
+        title: "Invalid Email", 
+        description: "Please enter a valid email address.", 
+        variant: "destructive" 
+      }); 
+      return;
+    }
+
+    try {
+      // Add timestamp to track when users joined
+      const currentTime = new Date().toISOString();
+      const entry = await joinWaitlist(
+        email.trim(), 
+        userName.trim() || undefined, 
+        referralCode
+      );
+      
+      if (entry) {
+        // Add created_at timestamp to the entry data for display in dashboard
+        const entryWithTimestamp = {
+          ...entry,
+          created_at: currentTime
+        };
+        
+        // Update state
+        setUserEmail(email.trim());
+        setCompletedTasks(prev => ({ 
+          ...prev, 
+          email: true 
+        })); 
+        setCompletedActions([...completedActions, "email"]);
+        setShowEmailInput(false); 
+
+        // Store in localStorage
+        const existingData = localStorage.getItem("waitlist_user");
+        const parsedExisting = existingData ? JSON.parse(existingData) : {};
+        localStorage.setItem(
+          "waitlist_user",
+          JSON.stringify({
+            ...parsedExisting,
+            email: email.trim(),
+            referral_code: entry.referral_code,
+            name: userName || parsedExisting.name || null,
+            wallet_address: userWalletAddress || parsedExisting.wallet_address || null,
+            twitter_username: userTwitterUsername || parsedExisting.twitter_username || null,
+            twitter_followed: completedActions.includes("twitter") || parsedExisting.twitter_followed || false,
+            discord_username: userDiscordUsername || parsedExisting.discord_username || null,
+            discord_joined: completedActions.includes("discord") || parsedExisting.discord_joined || false,
+            created_at: entry.created_at || parsedExisting.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+        );
+
+        toast({ 
+          title: "Email Submitted!", 
+          description: "Email task completed successfully." 
+        }); 
+      }
+    } catch (error) {
+      console.error("Error during waitlist signup:", error);
+      toast({ 
+        title: "Error", 
+        description: "Something went wrong. Please try again.", 
+        variant: "destructive" 
+      }); 
+    }
+  }; 
+
+  const handleWalletSubmit = async () => { 
+    if (!walletAddress) { 
+      toast({ 
+        title: "Wallet Address Required", 
+        description: "Please enter your EVM wallet address.", 
+        variant: "destructive" 
+      }); 
+      return; 
+    } 
+
+    // Validate the wallet address format
+    if (!validateWalletAddress(walletAddress)) {
+      toast({ 
+        title: "Invalid Wallet Address", 
+        description: "Please enter a valid Ethereum wallet address.", 
+        variant: "destructive" 
+      }); 
+      return;
+    }
+
+    try {
+      // Get user email from localStorage to update their record
+      const userData = localStorage.getItem("waitlist_user");
+      if (userData) {
+        const parsedData = JSON.parse(userData);
+        if (parsedData.email) {
+          // Update the user's waitlist entry with their wallet address
+          await updateWaitlistEntry(parsedData.email, {
+            wallet_address: walletAddress
+          });
+        }
+      }
+
+      // Update state
+      setUserWalletAddress(walletAddress);
+      setCompletedTasks(prev => ({ 
+        ...prev, 
+        wallet: true 
+      })); 
+      setCompletedActions([...completedActions, "address"]);
+      setShowWalletInput(false); 
+
+      // Update localStorage
+      const storedUserData = localStorage.getItem("waitlist_user");
+      if (storedUserData) {
+        const parsedData = JSON.parse(storedUserData);
+        localStorage.setItem(
+          "waitlist_user",
+          JSON.stringify({
+            ...parsedData,
+            wallet_address: walletAddress,
+            updated_at: new Date().toISOString(),
+          })
+        );
+      }
+
+      toast({ 
+        title: "Wallet Address Submitted!", 
+        description: "Wallet task completed successfully." 
+      }); 
+    } catch (error) {
+      console.error("Error updating wallet address:", error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to verify wallet. Please try again.", 
+        variant: "destructive" 
+      }); 
+    }
+  }; 
+
+  const handleTwitterSubmit = async () => { 
+    if (!twitterUsername) { 
+      toast({ 
+        title: "Username Required", 
+        description: "Please enter your Twitter username.", 
+        variant: "destructive" 
+      }); 
+      return; 
+    } 
+
+    // Format the username (remove @ if present)
+    const formattedUsername = twitterUsername.startsWith('@') 
+      ? twitterUsername.substring(1) 
+      : twitterUsername;
+
+    // Validate the Twitter username format
+    const twitterUsernameRegex = /^[a-zA-Z0-9_]{1,15}$/;
+    if (!twitterUsernameRegex.test(formattedUsername)) {
+      toast({ 
+        title: "Invalid Username", 
+        description: "Please enter a valid Twitter username (1-15 characters, alphanumeric and underscores).", 
+        variant: "destructive" 
+      }); 
+      return;
+    }
+
+    try {
+      // Get user email from localStorage to update their record
+      const userData = localStorage.getItem("waitlist_user");
+      if (userData) {
+        const parsedData = JSON.parse(userData);
+        if (parsedData.email) {
+          // Use the verifyTwitterFollow method to update the database
+          // We'll make 3 attempts to verify, in case there are temporary issues
+          let verified = false;
+          let attempts = 0;
+          
+          while (!verified && attempts < 3) {
+            attempts++;
+            verified = await verifyTwitterFollow(parsedData.email, formattedUsername);
+            if (verified) break;
+            // Wait briefly before retrying
+            if (attempts < 3) await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+      }
+
+      // Update state
+      setUserTwitterUsername(formattedUsername);
+      setCompletedTasks(prev => ({ 
+        ...prev, 
+        twitter: true 
+      })); 
+      setCompletedActions([...completedActions, "twitter"]);
+      setShowTwitterInput(false); 
+
+      // Store twitter info in localStorage
+      const storedUserData = localStorage.getItem("waitlist_user");
+      if (storedUserData) {
+        const parsedData = JSON.parse(storedUserData);
+        localStorage.setItem(
+          "waitlist_user",
+          JSON.stringify({
+            ...parsedData,
+            twitter_username: formattedUsername,
+            twitter_followed: true,
+            updated_at: new Date().toISOString(),
+          })
+        );
+      }
+
+      toast({ 
+        title: "Twitter Follow Verified!", 
+        description: "Twitter task completed successfully." 
+      }); 
+    } catch (error) {
+      console.error("Error verifying Twitter follow:", error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to verify Twitter follow. Please try again.", 
+        variant: "destructive" 
+      }); 
+    }
+  }; 
+
+  const handleDiscordSubmit = async () => { 
+    if (!discordUsername) { 
+      toast({ 
+        title: "Username Required", 
+        description: "Please enter your Discord username.", 
+        variant: "destructive" 
+      }); 
+      return; 
+    } 
+
+    // Validate the Discord username format
+    const discordUsernameRegex = /^[a-zA-Z0-9_]{2,32}(#\d{4})?$/;
+    if (!discordUsernameRegex.test(discordUsername.trim())) {
+      toast({ 
+        title: "Invalid Username", 
+        description: "Please enter a valid Discord username.", 
+        variant: "destructive" 
+      }); 
+      return;
+    }
+
+    try {
+      // Get user email from localStorage to update their record
+      const userData = localStorage.getItem("waitlist_user");
+      if (userData) {
+        const parsedData = JSON.parse(userData);
+        if (parsedData.email) {
+          // Use the verifyDiscordJoin method to update the database
+          // We'll make 3 attempts to verify, in case there are temporary issues
+          let verified = false;
+          let attempts = 0;
+          
+          while (!verified && attempts < 3) {
+            attempts++;
+            verified = await verifyDiscordJoin(parsedData.email, discordUsername.trim());
+            if (verified) break;
+            // Wait briefly before retrying
+            if (attempts < 3) await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+      }
+
+      // Update state
+      setUserDiscordUsername(discordUsername.trim());
+      setCompletedTasks(prev => ({ 
+        ...prev, 
+        discord: true 
+      })); 
+      setCompletedActions([...completedActions, "discord"]);
+      setShowDiscordInput(false); 
+
+      // Store discord info in localStorage
+      const storedUserData = localStorage.getItem("waitlist_user");
+      if (storedUserData) {
+        const parsedData = JSON.parse(storedUserData);
+        localStorage.setItem(
+          "waitlist_user",
+          JSON.stringify({
+            ...parsedData,
+            discord_username: discordUsername.trim(),
+            discord_joined: true,
+            updated_at: new Date().toISOString(),
+          })
+        );
+      }
+
+      toast({ 
+        title: "Discord Join Verified!", 
+        description: "Discord task completed successfully." 
+      }); 
+    } catch (error) {
+      console.error("Error verifying Discord join:", error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to verify Discord join. Please try again.", 
+        variant: "destructive" 
+      }); 
+    }
+  }; 
+
+  // Add missing success handlers for modals
+  const handleTaskComplete = (actionId: string) => {
+    // This function is used for the new inline input approach
+    handleActionComplete(actionId);
   };
 
-  const handleWalletSuccess = (walletAddress: string) => {
-    setUserWalletAddress(walletAddress);
-    setCompletedActions([...completedActions, "address"]);
-    
-    // Update localStorage with wallet address
-    const userData = localStorage.getItem("waitlist_user");
-    if (userData) {
-      const parsedData = JSON.parse(userData);
-      localStorage.setItem(
-        "waitlist_user",
-        JSON.stringify({
-          ...parsedData,
-          wallet_address: walletAddress,
-          updated_at: new Date().toISOString(),
-        })
-      );
-    }
+  const handleEmailSuccess = (email: string, name?: string) => {
+    setUserEmail(email);
+    if (name) setUserName(name);
+    setCompletedTasks(prev => ({ ...prev, email: true }));
+    setCompletedActions(prev => [...prev, "email"]);
+    toast({ 
+      title: "Email Submitted!", 
+      description: "Email task completed successfully." 
+    });
   };
-  
-  const handleTwitterSuccess = (twitterUsername: string) => {
-    setUserTwitterUsername(twitterUsername);
-    setCompletedActions([...completedActions, "twitter"]);
-    
-    // Store twitter info in localStorage
-    const userData = localStorage.getItem("waitlist_user");
-    if (userData) {
-      const parsedData = JSON.parse(userData);
-      localStorage.setItem(
-        "waitlist_user",
-        JSON.stringify({
-          ...parsedData,
-          twitter_username: twitterUsername,
-          twitter_followed: true,
-          updated_at: new Date().toISOString(),
-        })
-      );
-    }
+
+  const handleWalletSuccess = (address: string) => {
+    setUserWalletAddress(address);
+    setCompletedTasks(prev => ({ ...prev, wallet: true }));
+    setCompletedActions(prev => [...prev, "address"]);
+    toast({ 
+      title: "Wallet Address Submitted!", 
+      description: "Wallet task completed successfully." 
+    });
   };
-  
-  const handleDiscordSuccess = (discordUsername: string) => {
-    setUserDiscordUsername(discordUsername);
-    setCompletedActions([...completedActions, "discord"]);
-    
-    // Store discord info in localStorage
-    const userData = localStorage.getItem("waitlist_user");
-    if (userData) {
-      const parsedData = JSON.parse(userData);
-      localStorage.setItem(
-        "waitlist_user",
-        JSON.stringify({
-          ...parsedData,
-          discord_username: discordUsername,
-          discord_joined: true,
-          updated_at: new Date().toISOString(),
-        })
-      );
-    }
+
+  const handleTwitterSuccess = (username: string) => {
+    setUserTwitterUsername(username);
+    setCompletedTasks(prev => ({ ...prev, twitter: true }));
+    setCompletedActions(prev => [...prev, "twitter"]);
+    toast({ 
+      title: "Twitter Follow Verified!", 
+      description: "Twitter task completed successfully." 
+    });
+  };
+
+  const handleDiscordSuccess = (username: string) => {
+    setUserDiscordUsername(username);
+    setCompletedTasks(prev => ({ ...prev, discord: true }));
+    setCompletedActions(prev => [...prev, "discord"]);
+    toast({ 
+      title: "Discord Join Verified!", 
+      description: "Discord task completed successfully." 
+    });
   };
 
   // Check if all required actions are completed (email, wallet, twitter, discord)
@@ -191,6 +511,9 @@ const Index = () => {
   const allActionsCompleted = requiredActions.every(action => 
     completedActions.includes(action)
   );
+
+  // Alternative way to check completion using the new state
+  const allTasksCompleted = Object.values(completedTasks).every(Boolean);
 
   return (
     <div className="min-h-screen flex flex-col bg-[url(assets/images/background1.jpg)] bg-cover bg-center bg-no-repeat text-white">
@@ -216,47 +539,133 @@ const Index = () => {
                 style={{ background: "transparent" }} />}
               title="Connect Email"
               subtitle="To Receive Latest Updates First"
-              completed={completedActions.includes("email")}
-              onClick={() => handleActionComplete("email")}
+              completed={completedTasks.email}
+              onClick={() => handleTaskComplete("email")}
             />
+            {showEmailInput && (
+              <div className="bg-[#080420]/90 border border-[#3B5EFB]/70 p-4 rounded-xl shadow-[0_0_15px_rgba(59,94,251,0.3)]">
+                <div className="flex flex-col space-y-3">
+                  <Input
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-[#233876] p-3 rounded-xl text-white font-medium placeholder:text-white/80 focus:outline-none focus:ring-0 border-0"
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Your name (optional)"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    className="bg-[#233876] p-3 rounded-xl text-white font-medium placeholder:text-white/80 focus:outline-none focus:ring-0 border-0"
+                  />
+                  <Button 
+                    onClick={handleEmailSubmit}
+                    className="bg-[#5D43EF] hover:bg-[#4935c8] text-white font-bold py-2 rounded-xl"
+                  >
+                    Submit
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <WaitlistCard
               icon={<img src="/images/WALLET.png" alt="Wallet Icon" className="w-full h-full object-contain rounded-lg"
                 style={{ background: "transparent" }} />}
               title="Enter Wallet Address"
               subtitle="To Receive Web3 Rewards"
-              completed={completedActions.includes("address")}
-              onClick={() => handleActionComplete("address")}
+              completed={completedTasks.wallet}
+              onClick={() => handleTaskComplete("wallet")}
             />
+            {showWalletInput && (
+              <div className="bg-[#080420]/90 border border-[#3B5EFB]/70 p-4 rounded-xl shadow-[0_0_15px_rgba(59,94,251,0.3)]">
+                <div className="flex flex-col space-y-3">
+                  <Input
+                    type="text"
+                    placeholder="Enter your EVM wallet address"
+                    value={walletAddress}
+                    onChange={(e) => setWalletAddress(e.target.value)}
+                    className="bg-[#233876] p-3 rounded-xl text-white font-medium placeholder:text-white/80 focus:outline-none focus:ring-0 border-0"
+                  />
+                  <Button 
+                    onClick={handleWalletSubmit}
+                    className="bg-[#5D43EF] hover:bg-[#4935c8] text-white font-bold py-2 rounded-xl"
+                  >
+                    Submit
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <WaitlistCard
               icon={<img src="/images/x.png" alt="X Icon" className="w-full h-full object-contain rounded-lg"
                 style={{ background: "transparent" }} />}
               title="Follow Us On X"
               subtitle="To Stay Updated On Latest News"
-              completed={completedActions.includes("twitter")}
-              onClick={() => handleActionComplete("twitter")}
+              completed={completedTasks.twitter}
+              onClick={() => handleTaskComplete("twitter")}
             />
+            {showTwitterInput && (
+              <div className="bg-[#080420]/90 border border-[#3B5EFB]/70 p-4 rounded-xl shadow-[0_0_15px_rgba(59,94,251,0.3)]">
+                <div className="flex flex-col space-y-3">
+                  <Input
+                    type="text"
+                    placeholder="Enter your Twitter username"
+                    value={twitterUsername}
+                    onChange={(e) => setTwitterUsername(e.target.value)}
+                    className="bg-[#233876] p-3 rounded-xl text-white font-medium placeholder:text-white/80 focus:outline-none focus:ring-0 border-0"
+                  />
+                  <Button 
+                    onClick={handleTwitterSubmit}
+                    className="bg-[#5D43EF] hover:bg-[#4935c8] text-white font-bold py-2 rounded-xl"
+                  >
+                    Confirm Follow
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <WaitlistCard
               icon={<img src="/images/discord1.png" alt="Discord Icon" className="w-full h-full object-contain rounded-lg"
                 style={{ background: "transparent" }} />}
               title="Join Our Discord"
               subtitle="Join & Become A Part Of our community"
-              completed={completedActions.includes("discord")}
-              onClick={() => handleActionComplete("discord")}
+              completed={completedTasks.discord}
+              onClick={() => handleTaskComplete("discord")}
             />
+            {showDiscordInput && (
+              <div className="bg-[#080420]/90 border border-[#3B5EFB]/70 p-4 rounded-xl shadow-[0_0_15px_rgba(59,94,251,0.3)]">
+                <div className="flex flex-col space-y-3">
+                  <Input
+                    type="text"
+                    placeholder="Enter your Discord username"
+                    value={discordUsername}
+                    onChange={(e) => setDiscordUsername(e.target.value)}
+                    className="bg-[#233876] p-3 rounded-xl text-white font-medium placeholder:text-white/80 focus:outline-none focus:ring-0 border-0"
+                  />
+                  <Button 
+                    onClick={handleDiscordSubmit}
+                    className="bg-[#5D43EF] hover:bg-[#4935c8] text-white font-bold py-2 rounded-xl"
+                  >
+                    Confirm Join
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Enter Button */}
           <div className="mt-10">
           <Button
   className={`w-full py-6 px-6 rounded-xl font-bold text-2xl uppercase tracking-wide transition-all duration-300 ${
-    allActionsCompleted
+    allTasksCompleted
       ? "bg-[#5D43EF] text-white shadow-[0_0_20px_rgba(59,94,251,0.5)]"
       : "bg-gray-800/70 text-blue-200 cursor-not-allowed"
   }`}
-  style={allActionsCompleted ? { } : {}}
-  disabled={!allActionsCompleted}
+  style={allTasksCompleted ? { } : {}}
+  disabled={!allTasksCompleted}
   onClick={() => {
-    if (allActionsCompleted) {
+    if (allTasksCompleted) {
       navigate('/dashboard');
     }
   }}
@@ -270,8 +679,7 @@ const Index = () => {
 </Button>
           </div>
 
-
-          {/* Email Modal */}
+          {/* Email Modal - Keep for backward compatibility but don't use */}
           <EmailModal
             isOpen={showEmailModal}
             onClose={() => setShowEmailModal(false)}
@@ -279,21 +687,21 @@ const Index = () => {
             referralCode={referralCode || undefined}
           />
           
-          {/* Wallet Verification Modal */}
+          {/* Wallet Verification Modal - Keep for backward compatibility but don't use */}
           <WalletVerificationDialog
             isOpen={showWalletModal}
             onClose={() => setShowWalletModal(false)}
             onSuccess={handleWalletSuccess}
           />
           
-          {/* Twitter Verification Modal */}
+          {/* Twitter Verification Modal - Keep for backward compatibility but don't use */}
           <TwitterVerificationDialog
             isOpen={showTwitterModal}
             onClose={() => setShowTwitterModal(false)}
             onSuccess={handleTwitterSuccess}
           />
           
-          {/* Discord Verification Modal */}
+          {/* Discord Verification Modal - Keep for backward compatibility but don't use */}
           <DiscordVerificationDialog
             isOpen={showDiscordModal}
             onClose={() => setShowDiscordModal(false)}

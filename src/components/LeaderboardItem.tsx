@@ -2,7 +2,7 @@
 interface LeaderboardItemProps {
   rank: number;
   name: string;
-  referrals: number;
+  referrals: number; // Ensure this is treated as a number
   isCurrentUser?: boolean;
 }
 

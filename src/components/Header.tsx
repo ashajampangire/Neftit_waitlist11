@@ -38,11 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ className }) => {
               Home
             </DropdownMenuItem>
           </Link>
-          <Link to="/waitlist" className="w-full">
-            <DropdownMenuItem className="cursor-pointer hover:bg-[#5D3FD3]/30 focus:bg-[#5D3FD3]/30">
-              Join Waitlist
-            </DropdownMenuItem>
-          </Link>
+    
           <Link to="/dashboard" className="w-full">
             <DropdownMenuItem className="cursor-pointer hover:bg-[#5D3FD3]/30 focus:bg-[#5D3FD3]/30">
               Dashboard

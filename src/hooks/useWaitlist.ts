@@ -247,16 +247,21 @@ export const useWaitlist = () => {
       // Combine the data to create the leaderboard
       const referralCounts = new Map();
       referralData.forEach((item: any) => {
-        referralCounts.set(item.referrer_email, parseInt(item.count));
+        // Ensure count is stored as a number
+        referralCounts.set(item.referrer_email, parseInt(item.count, 10));
       });
       
       console.log(`Retrieved referral counts for ${referralCounts.size} users`);
+      console.log('Referral counts:', Object.fromEntries([...referralCounts.entries()]));
       
-      const leaderboardData = waitlistData.map((entry: any) => ({
-        ...entry,
-        referral_count: referralCounts.get(entry.email) || 0,
-        joined_at: entry.created_at ? new Date(entry.created_at).toLocaleDateString() : 'Unknown',
-      }));
+      const leaderboardData = waitlistData.map((entry: any) => {
+        const count = referralCounts.get(entry.email) || 0;
+        return {
+          ...entry,
+          referral_count: count, // Store as a number, not a string
+          joined_at: entry.created_at ? new Date(entry.created_at).toLocaleDateString() : 'Unknown',
+        };
+      });
       
       console.log('Successfully created leaderboard data from direct queries');
       return leaderboardData;
